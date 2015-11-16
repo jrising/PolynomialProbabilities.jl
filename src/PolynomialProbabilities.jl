@@ -1,33 +1,66 @@
 module PolynomialProbabilities
-
 using Distributions
 
-export PolynomialProbability
+import Base.getindex, Base.append!, Base.isequal, Base.==, Base.length
 
-type PolynomialProbability <: ContinuousUnivariateDistribution
-    t0::Vector{Float64}
-    t1::Vector{Float64}
+export PolynomialProbability, PolynomialProbabilityPiece, append!, ==, getindex, length
+
+type PolynomialProbabilityPiece
+    t0::Float64
+    t1::Float64
     polys::Array{Float64, 2}
-    exp:Vector{Float64, 2}
+    exp::Vector{Float64}
 
+    # Setting all attributes
+    PolynomialProbabilityPiece(t0::Float64, t1::Float64, polys::Array{Float64, 2}, exp::Vector{Float64}) = new(t0, t1, polys, exp)
     # Uniform distribution
-    PolynomialProbability(t0::Float64, t1::Float64, constant::Float64) = new([t0], [t1], [constant], [0])
-    # Segment of a distribution
-    PolynomialProbability(t0::Float64, t1::Float64, polys::Vector{Float64}, exp::Vector{Float64}) = new([t0], [t1], polys, exp)
-    # Full domain simple distribution
-    PolynomialProbability(polys::Vector{Float64}, exp::Vector{Float64}) = new([-Inf], [Inf], polys, exp)
+    PolynomialProbabilityPiece(t0::Float64, t1::Float64, constant::Float64) = new(t0, t1, eye(1) * constant, [0])
 end
 
-length(pp::PolynomialProbability) = size(pp.exp, 1)
-getindex(pp::PolynomialProbability, ii::Float64) = PolynomialProbability(pp.t0[ii], pp.t1[ii], pp.polys[ii, :], pp.exp[ii, :])
+function ==(pp1::PolynomialProbabilityPiece, pp2::PolynomialProbabilityPiece)
+    return pp1.t0 == pp2.t0 && pp1.t1 == pp2.t1 && pp1.polys == pp2.polys && pp1.exp == pp2.exp
+end
 
-function append!(pp::PolynomialProbability, t0::Float64, t1::Float64, polys::Vector{Float64}, exp::Vector{Float64})
-    pp.t0.push!(t0)
-    pp.t1.push!(t1)
-    pp.polys = vcat(pp.polys, polys)
-    pp.exp = vcat(pp.exp, exp)
+type PolynomialProbability <: ContinuousUnivariateDistribution
+    pieces::Vector{PolynomialProbabilityPiece}
+
+    # Empty distribution
+    PolynomialProbability() = new([])
+    # Full domain simple distribution
+    PolynomialProbability(polys::Array{Float64, 2}, exp::Vector{Float64}) = new([PolynomialProbabilityPiece(-Inf, Inf, polys, exp)])
+end
+
+length(pp::PolynomialProbability) = length(pp.pieces)
+getindex(pp::PolynomialProbability, ii::Int64) = pp.pieces[ii]
+
+function ==(pp1::PolynomialProbability, pp2::PolynomialProbability)
+    if length(pp1) != length(pp2)
+        return false
+    end
+
+    for ii = 1:length(pp1)
+        if pp1[ii] != pp2[ii]
+            return false
+        end
+    end
+
+    return true
+end
+
+function append!(pp::PolynomialProbability, t0::Float64, t1::Float64, polys::Array{Float64, 2}, exp::Vector{Float64})
+    piece = PolynomialProbabilityPiece(t0, t1, polys, exp)
+    push!(pp.pieces, piece)
 
     pp
 end
+
+function append!(pp::PolynomialProbability, t0::Float64, t1::Float64, constant::Float64)
+    piece = PolynomialProbabilityPiece(t0, t1, constant)
+    push!(pp.pieces, piece)
+
+    pp
+end
+
+include("ppsimple.jl")
 
 end # module
